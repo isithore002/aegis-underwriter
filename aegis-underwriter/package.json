@@ -1,0 +1,40 @@
+{
+  "name": "aegis-underwriter",
+  "version": "1.0.0",
+  "description": "Autonomous AI lending agent for Tether Hackathon Galactica",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "compile": "hardhat compile",
+    "deploy:amoy": "hardhat run scripts/deploy.ts --network polygonAmoy",
+    "deploy:sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
+    "test": "hardhat test",
+    "clean": "hardhat clean"
+  },
+  "keywords": [
+    "tether",
+    "wdk",
+    "defi",
+    "lending",
+    "ai-agent"
+  ],
+  "author": "Aegis Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@types/node": "^20.11.0",
+    "hardhat": "^2.19.4",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.1",
+    "@tetherto/wdk": "latest",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.10.0",
+    "inquirer": "^8.2.6",
+    "openai": "^4.24.1"
+  }
+}
