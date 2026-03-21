@@ -3,7 +3,7 @@ import cors from "cors";
 import * as dotenv from "dotenv";
 import { getCreditData, formatCreditSummary } from "./credit";
 import { negotiateLoan, quickDecision, formatLoanDecision, LoanRequest } from "./llm";
-import { initTreasury, getTreasuryInfo, disburseFunds, getRepaymentDetails, verifyLoanRepayment } from "./treasury";
+import { initTreasury, getTreasuryInfo, disburseFunds, getRepaymentDetails, verifyLoanRepayment, collectRepayment } from "./treasury";
 
 dotenv.config();
 
@@ -226,11 +226,26 @@ app.post("/api/chat", async (req, res) => {
         }
 
         if (verification.isRepaid) {
+          // Collect the repayment and refresh treasury balance
+          const repaymentCollection = await collectRepayment(addressMatch[0]);
+
+          // Give the blockchain a moment to finalize the transaction
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Get fresh treasury balance after repayment
           const treasuryInfo = await getTreasuryInfo();
-          return res.json({
-            reply: `📋 LOAN REPAYMENT SUCCESSFUL\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED!\n\n• Loan Status: ✅ REPAID\n• Active: ${verification.isActive ? "Yes" : "No"}\n• Treasury Balance: ${treasuryInfo.usdtBalanceFormatted} USDT\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
-            type: "success",
-          });
+
+          if (repaymentCollection.success) {
+            return res.json({
+              reply: `📋 LOAN REPAYMENT SUCCESSFUL\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED!\n\n• Loan Status: ✅ REPAID\n• Repayment Amount Received: ${repaymentCollection.amount} USDT\n• Updated Treasury Balance: ${treasuryInfo.usdtBalanceFormatted} USDT\n• Active: ${verification.isActive ? "Yes" : "No"}\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
+              type: "success",
+            });
+          } else {
+            return res.json({
+              reply: `📋 LOAN REPAYMENT STATUS\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED ON-CHAIN!\n\n• Loan Status: ✅ REPAID\n• Updated Treasury Balance: ${treasuryInfo.usdtBalanceFormatted} USDT\n• Active: ${verification.isActive ? "Yes" : "No"}\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
+              type: "success",
+            });
+          }
         } else if (verification.isActive) {
           return res.json({
             reply: `⏳ LOAN STILL ACTIVE\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\nStatus: Loan is still active and not yet repaid.\n\nMake sure you:\n1. Approved USDT on the AegisLedger contract\n2. Called the repayLoan() function from your wallet\n3. Transaction was successfully mined\n\nWait a moment and try verifying again.`,

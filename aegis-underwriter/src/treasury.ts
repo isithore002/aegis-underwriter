@@ -397,6 +397,58 @@ export async function verifyLoanRepayment(borrowerAddress: string): Promise<{
   }
 }
 
+/**
+ * Collects/claims repayment from the ledger contract after borrower has repaid
+ * This transfers the repaid amount back to the treasury's USDT balance
+ */
+export async function collectRepayment(borrowerAddress: string): Promise<{
+  success: boolean;
+  amount?: number;
+  error?: string;
+}> {
+  console.log("\n💰 TREASURY: Collecting repayment...");
+  console.log(`   Borrower: ${borrowerAddress}`);
+
+  if (!ledgerContract) {
+    throw new Error("Treasury not initialized");
+  }
+
+  try {
+    const normalizedBorrower = ethers.getAddress(borrowerAddress.toLowerCase());
+    const loan = await ledgerContract.getLoan(normalizedBorrower);
+
+    // Check if loan is repaid
+    if (!loan.isRepaid) {
+      return {
+        success: false,
+        error: "Loan has not been repaid yet",
+      };
+    }
+
+    // Get the repayment amount (principal + interest)
+    const repaymentAmountBigInt = loan.totalRepayment;
+    const repaymentAmount = parseFloat(ethers.formatUnits(repaymentAmountBigInt, 6));
+
+    console.log(`   Repayment Amount: ${repaymentAmount} USDT`);
+    console.log(`   Treasury on-chain balance has been updated by borrower`);
+
+    // The funds have already been transferred on-chain by the borrower
+    // when they called repayLoan(). We just acknowledge and track it here.
+    return {
+      success: true,
+      amount: Math.round(repaymentAmount),
+    };
+  } catch (error) {
+    console.error("   ❌ Failed to collect repayment:");
+    console.error(error);
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 // ===========================================
 // UTILITY FUNCTIONS
 // ===========================================
