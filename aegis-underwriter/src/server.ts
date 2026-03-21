@@ -176,6 +176,9 @@ app.post("/api/chat", async (req, res) => {
           const disbursementResult = await disburseFunds(addressMatch[0], decision);
 
           if (disbursementResult.success) {
+            // Give the blockchain a moment to finalize the transaction (same as repayment)
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
             // Get updated treasury balance AFTER disbursement
             const treasuryAfter = await getTreasuryInfo();
             console.log(`   Treasury Balance AFTER: ${treasuryAfter.usdtBalanceFormatted} USDT`);
