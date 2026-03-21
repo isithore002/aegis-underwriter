@@ -237,13 +237,36 @@ export async function disburseFunds(
   }
 
   try {
+    // Check if borrower already has an active loan BEFORE disbursing
+    const existingLoan = await ledgerContract.getLoan(normalizedBorrower);
+    if (existingLoan.isActive) {
+      return {
+        success: false,
+        error: `Borrower already has an active loan. Must repay existing loan before applying for another.`,
+        borrower: normalizedBorrower,
+        amount: loanDecision.amount,
+      };
+    }
+
     // TRANSACTION 1: Transfer USDT to borrower
     console.log("\n   [1/2] Transferring USDT to borrower...");
+    console.log(`   Transfer Details: ${amountInUnits.toString()} units (${loanDecision.amount} USDT) from treasury to ${normalizedBorrower}`);
+
     const transferTx = await usdtContract.transfer(normalizedBorrower, amountInUnits);
-    console.log(`   ✓ Transfer TX: ${transferTx.hash}`);
+    console.log(`   ✓ Transfer TX initiated: ${transferTx.hash}`);
 
     const transferReceipt = await transferTx.wait();
-    console.log(`   ✓ Transfer confirmed in block ${transferReceipt?.blockNumber}`);
+    if (!transferReceipt) {
+      throw new Error("Transfer receipt is null - transaction may have failed");
+    }
+
+    console.log(`   ✓ Transfer confirmed in block ${transferReceipt.blockNumber}`);
+    console.log(`   ✓ Status: ${transferReceipt.status === 1 ? "SUCCESS" : "FAILED"}`);
+    console.log(`   ✓ Gas Used: ${transferReceipt.gasUsed.toString()}`);
+
+    // Verify balance after transfer
+    const balanceAfter = await usdtContract.balanceOf(treasuryWallet.address);
+    console.log(`   ✓ Treasury balance after transfer: ${ethers.formatUnits(balanceAfter, 6)} USDT`);
 
     // TRANSACTION 2: Record loan on AegisLedger
     console.log("\n   [2/2] Recording loan on AegisLedger...");
@@ -261,7 +284,12 @@ export async function disburseFunds(
     console.log(`   ✓ Loan Record TX: ${loanTx.hash}`);
 
     const loanReceipt = await loanTx.wait();
-    console.log(`   ✓ Loan recorded in block ${loanReceipt?.blockNumber}`);
+    if (!loanReceipt) {
+      throw new Error("Loan receipt is null - transaction may have failed");
+    }
+
+    console.log(`   ✓ Loan recorded in block ${loanReceipt.blockNumber}`);
+    console.log(`   ✓ Status: ${loanReceipt.status === 1 ? "SUCCESS" : "FAILED"}`);
 
     // Calculate gas used
     const totalGasUsed = (transferReceipt?.gasUsed || 0n) + (loanReceipt?.gasUsed || 0n);

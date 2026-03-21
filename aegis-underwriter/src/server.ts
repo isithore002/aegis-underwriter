@@ -165,17 +165,24 @@ app.post("/api/chat", async (req, res) => {
       if (decision.status !== "denied") {
         try {
           console.log(`\n💸 [DISBURSEMENT] Processing loan for ${addressMatch[0]}...`);
+          console.log(`   Loan Amount: ${decision.amount} USDT @ ${decision.interest_rate}% interest`);
 
-          // Initialize treasury and disburse funds
+          // Get treasury balance BEFORE disbursement
           await initTreasury();
+          const treasuryBefore = await getTreasuryInfo();
+          console.log(`   Treasury Balance BEFORE: ${treasuryBefore.usdtBalanceFormatted} USDT`);
+
+          // Disburse funds
           const disbursementResult = await disburseFunds(addressMatch[0], decision);
 
           if (disbursementResult.success) {
-            // Get updated treasury balance
-            const treasuryInfo = await getTreasuryInfo();
+            // Get updated treasury balance AFTER disbursement
+            const treasuryAfter = await getTreasuryInfo();
+            console.log(`   Treasury Balance AFTER: ${treasuryAfter.usdtBalanceFormatted} USDT`);
+            console.log(`   Difference: ${treasuryBefore.usdtBalanceFormatted} → ${treasuryAfter.usdtBalanceFormatted}`);
 
             return res.json({
-              reply: `📋 LOAN APPLICATION RESULT\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\nRequested: ${requestedAmount} USDT\nCredit Tier: ${creditData.creditTier}\nRisk Score: ${creditData.riskScore}/100\n\n${statusEmoji} DECISION: ${decision.status.toUpperCase()}\n${decisionText}\n\n💬 "${decision.message}"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💸 FUNDS DISBURSED SUCCESSFULLY!\n\n• Amount Sent: ${decision.amount} USDT\n• TX Hash: [TX:${disbursementResult.transactionHash}]\n• Ledger TX: [TX:${disbursementResult.loanRecordHash}]\n• Treasury Balance: ${treasuryInfo.usdtBalanceFormatted} USDT`,
+              reply: `📋 LOAN APPLICATION RESULT\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\nRequested: ${requestedAmount} USDT\nCredit Tier: ${creditData.creditTier}\nRisk Score: ${creditData.riskScore}/100\n\n${statusEmoji} DECISION: ${decision.status.toUpperCase()}\n${decisionText}\n\n💬 "${decision.message}"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💸 FUNDS DISBURSED SUCCESSFULLY!\n\n• Amount Sent: ${decision.amount} USDT\n• TX Hash: [TX:${disbursementResult.transactionHash}]\n• Ledger TX: [TX:${disbursementResult.loanRecordHash}]\n• Treasury Balance: ${treasuryAfter.usdtBalanceFormatted} USDT`,
               type: "success",
               txHash: disbursementResult.transactionHash,
               loanRecordHash: disbursementResult.loanRecordHash,
