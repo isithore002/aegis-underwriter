@@ -23,7 +23,7 @@ interface Message {
  */
 function generatePolygonscanUrl(txHash: string): string {
   // Polygon Amoy testnet uses OKLink explorer
-  return `https://www.oklink.com/amoy/tx/${txHash}`;
+  return `https://amoy.polygonscan.com/tx/${txHash}`;
 }
 
 /**
@@ -541,7 +541,7 @@ Run: npm run server`);
                 {msg.repaymentDetails && (
                   <QuickRepayButton
                     repaymentDetails={msg.repaymentDetails}
-                    onSuccess={(approveTx, repayTx) => {
+                    onSuccess={(_approveTx, _repayTx) => {
                       addMessage('system', `💬 Now verify with: verify repay ${msg.repaymentDetails!.borrowerAddress}`);
                     }}
                     onError={(error) => {

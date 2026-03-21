@@ -109,7 +109,7 @@ export function QuickRepayButton({ repaymentDetails, onSuccess, onError }: Quick
             <div className="repay-tx-row">
               <span className="repay-label">Approval TX:</span>
               <a
-                href={`https://www.oklink.com/amoy/tx/${transactionHashes.approve}`}
+                href={`https://amoy.polygonscan.com/tx/${transactionHashes.approve}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="repay-tx-link"
@@ -120,7 +120,7 @@ export function QuickRepayButton({ repaymentDetails, onSuccess, onError }: Quick
             <div className="repay-tx-row">
               <span className="repay-label">Repay TX:</span>
               <a
-                href={`https://www.oklink.com/amoy/tx/${transactionHashes.repay}`}
+                href={`https://amoy.polygonscan.com/tx/${transactionHashes.repay}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="repay-tx-link"
