@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
+import { QuickRepayButton } from './QuickRepayButton';
 import './index.css';
 
 interface Message {
@@ -7,6 +9,57 @@ interface Message {
   type: 'user' | 'system' | 'error' | 'success' | 'warning';
   content: string;
   timestamp: string;
+  repaymentDetails?: {
+    amount: number;
+    borrowerAddress: string;
+    contractAddress: string;
+    usdtAddress?: string;
+    ledgerAddress?: string;
+  };
+}
+
+/**
+ * Generates a Polygonscan URL for a transaction hash
+ */
+function generatePolygonscanUrl(txHash: string): string {
+  // Polygon Amoy testnet uses OKLink explorer
+  return `https://www.oklink.com/amoy/tx/${txHash}`;
+}
+
+/**
+ * Formats transaction hash for display (shortened with ellipsis)
+ */
+function formatTxHash(txHash: string): string {
+  return `${txHash.slice(0, 10)}...${txHash.slice(-6)}`;
+}
+
+/**
+ * Parses message content and renders transaction hashes as clickable links
+ * Format: [TX:0x...] will become a clickable link
+ */
+function renderMessageContent(content: string) {
+  const parts = content.split(/(\[TX:[a-fA-F0-9x]+\])/);
+
+  return parts.map((part, idx) => {
+    const txMatch = part.match(/\[TX:(0x[a-fA-F0-9]{64})\]/);
+    if (txMatch) {
+      const fullHash = txMatch[1];
+      const displayHash = formatTxHash(fullHash);
+      return (
+        <a
+          key={idx}
+          href={generatePolygonscanUrl(fullHash)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tx-link"
+          title={`View on Polygonscan: ${fullHash}`}
+        >
+          {displayHash}
+        </a>
+      );
+    }
+    return part;
+  });
 }
 
 const COMMANDS = [
@@ -28,8 +81,35 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [stats, setStats] = useState({ loans: 0, volume: '0', treasury: '---' });
+  const [copied, setCopied] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Wagmi hooks for wallet connection
+  const { address: userAddress, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+
+  const handleWalletClick = () => {
+    if (isConnected) {
+      disconnect();
+    } else {
+      // Connect using the first available connector (injected MetaMask)
+      const injectedConnector = connectors[0];
+      if (injectedConnector) {
+        connect({ connector: injectedConnector });
+      }
+    }
+  };
+
+  const copyToClipboard = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (userAddress) {
+      navigator.clipboard.writeText(userAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     if (messagesRef.current) {
@@ -53,12 +133,13 @@ export default function App() {
     return new Date().toLocaleTimeString('en-US', { hour12: false });
   };
 
-  const addMessage = (type: Message['type'], content: string) => {
+  const addMessage = (type: Message['type'], content: string, repaymentDetails?: Message['repaymentDetails']) => {
     setMessages(prev => [...prev, {
       id: Date.now(),
       type,
       content,
-      timestamp: getTimestamp()
+      timestamp: getTimestamp(),
+      repaymentDetails
     }]);
   };
 
@@ -75,6 +156,8 @@ export default function App() {
 
 credit <wallet>        - Check on-chain credit score
 loan <amount> <wallet> - Apply for USDT loan (max 500)
+repay <wallet>         - Get repayment instructions
+verify repay <wallet>  - Confirm loan repayment
 treasury               - Display treasury balance
 status                 - System status check
 clear                  - Clear messages
@@ -130,7 +213,8 @@ Run: npm run server`);
       setIsProcessing(true);
       try {
         const res = await axios.post('http://localhost:3001/api/chat', {
-          message: `check credit ${walletMatch[0]}`
+          message: `check credit ${walletMatch[0]}`,
+          walletAddress: userAddress
         });
         addMessage('success', res.data.reply);
       } catch {
@@ -155,7 +239,8 @@ Run: npm run server`);
       setIsProcessing(true);
       try {
         const res = await axios.post('http://localhost:3001/api/chat', {
-          message: `apply for loan ${amount} USDT wallet ${walletMatch[0]}`
+          message: `apply for loan ${amount} USDT wallet ${walletMatch[0]}`,
+          walletAddress: userAddress
         });
         const msgType = res.data.type === 'success' ? 'success' :
                        res.data.type === 'error' ? 'error' : 'warning';
@@ -168,10 +253,57 @@ Run: npm run server`);
       return;
     }
 
+    if (trimmed.startsWith('repay')) {
+      const walletMatch = cmd.match(/0x[a-fA-F0-9]{40}/);
+      if (!walletMatch) {
+        addMessage('error', 'No wallet address found. Usage: repay 0xYourWallet');
+        return;
+      }
+      setIsProcessing(true);
+      try {
+        const res = await axios.post('http://localhost:3001/api/chat', {
+          message: `repay ${walletMatch[0]}`,
+          walletAddress: userAddress
+        });
+        const msgType = res.data.type === 'success' ? 'success' :
+                       res.data.type === 'error' ? 'error' : 'warning';
+        addMessage(msgType, res.data.reply, res.data.repaymentDetails);
+      } catch {
+        addMessage('error', 'Backend offline. Start server: npm run server');
+      }
+      setIsProcessing(false);
+      return;
+    }
+
+    if (trimmed.startsWith('verify')) {
+      const walletMatch = cmd.match(/0x[a-fA-F0-9]{40}/);
+      if (!walletMatch) {
+        addMessage('error', 'No wallet address found. Usage: verify repay 0xYourWallet');
+        return;
+      }
+      setIsProcessing(true);
+      try {
+        const res = await axios.post('http://localhost:3001/api/chat', {
+          message: `verify repay ${walletMatch[0]}`,
+          walletAddress: userAddress
+        });
+        const msgType = res.data.type === 'success' ? 'success' :
+                       res.data.type === 'error' ? 'error' : 'warning';
+        addMessage(msgType, res.data.reply);
+      } catch {
+        addMessage('error', 'Backend offline. Start server: npm run server');
+      }
+      setIsProcessing(false);
+      return;
+    }
+
     if (cmd.match(/0x[a-fA-F0-9]{40}/)) {
       setIsProcessing(true);
       try {
-        const res = await axios.post('http://localhost:3001/api/chat', { message: cmd });
+        const res = await axios.post('http://localhost:3001/api/chat', {
+          message: cmd,
+          walletAddress: userAddress
+        });
         addMessage('system', res.data.reply);
       } catch {
         addMessage('error', 'Backend connection failed');
@@ -296,6 +428,20 @@ Run: npm run server`);
             <span className="header-badge">v1.0.0</span>
           </div>
           <div className="header-right">
+            <div className="wallet-section">
+              <button onClick={handleWalletClick} className="wallet-button">
+                {userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Connect Wallet'}
+              </button>
+              {isConnected && (
+                <button
+                  onClick={copyToClipboard}
+                  className="wallet-copy-button"
+                  title="Copy full wallet address"
+                >
+                  {copied ? '✓ Copied!' : '📋 Copy'}
+                </button>
+              )}
+            </div>
             <div className="header-stat">
               <span className="header-stat-label">Protocol</span>
               <span className="header-stat-value">Undercollateralized</span>
@@ -391,7 +537,18 @@ Run: npm run server`);
                   <span className="message-label">{getLabel(msg.type)}</span>
                   <span className="message-time">{msg.timestamp}</span>
                 </div>
-                <div className={getContentClass(msg.type)}>{msg.content}</div>
+                <div className={getContentClass(msg.type)}>{renderMessageContent(msg.content)}</div>
+                {msg.repaymentDetails && (
+                  <QuickRepayButton
+                    repaymentDetails={msg.repaymentDetails}
+                    onSuccess={(approveTx, repayTx) => {
+                      addMessage('system', `💬 Now verify with: verify repay ${msg.repaymentDetails!.borrowerAddress}`);
+                    }}
+                    onError={(error) => {
+                      addMessage('error', `Quick Repay failed: ${error}`);
+                    }}
+                  />
+                )}
               </div>
             ))}
 
@@ -415,15 +572,15 @@ Run: npm run server`);
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              disabled={isProcessing}
+              disabled={isProcessing || !isConnected}
               autoFocus
               spellCheck={false}
               autoComplete="off"
               className="chat-input"
-              placeholder={isProcessing ? "Processing..." : "Enter command (e.g., credit 0x...)"}
+              placeholder={!isConnected ? "Connect wallet to start..." : isProcessing ? "Processing..." : "Enter command (e.g., credit 0x...)"}
             />
           </div>
-          <button type="submit" disabled={isProcessing || !input.trim()} className="send-button">
+          <button type="submit" disabled={isProcessing || !input.trim() || !isConnected} className="send-button">
             EXECUTE
           </button>
         </form>
@@ -480,24 +637,12 @@ Run: npm run server`);
           <div className="contract-list">
             <div className="contract-item">
               <span className="contract-label">AegisLedger</span>
-              <span className="contract-status pending">Pending</span>
+              <span className="contract-status deployed">Deployed</span>
             </div>
             <div className="contract-item">
               <span className="contract-label">MockUSDT</span>
               <span className="contract-status deployed">Deployed</span>
             </div>
-          </div>
-        </div>
-
-        <div className="sidebar-section">
-          <div className="section-title">TECHNOLOGIES</div>
-          <div className="tech-tags">
-            <span className="tech-tag">Solidity</span>
-            <span className="tech-tag">OpenAI GPT-4</span>
-            <span className="tech-tag">Tether WDK</span>
-            <span className="tech-tag">Polygon</span>
-            <span className="tech-tag">React</span>
-            <span className="tech-tag">TypeScript</span>
           </div>
         </div>
       </aside>

@@ -253,6 +253,52 @@ body {
 .header-right {
   display: flex;
   gap: 24px;
+  align-items: center;
+}
+
+.wallet-button {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wallet-button:hover {
+  background: var(--primary);
+  color: #000;
+}
+
+.wallet-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.wallet-copy-button {
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.wallet-copy-button:hover {
+  background: var(--primary);
+  color: #000;
+}
+
+.wallet-copy-button:active {
+  transform: scale(0.98);
 }
 
 .header-stat {
@@ -548,6 +594,26 @@ body {
 .message-content.success-text { color: var(--green); }
 .message-content.warning-text { color: var(--yellow); }
 
+/* ===== TRANSACTION LINKS ===== */
+.tx-link {
+  color: var(--cyan);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  border-bottom: 1px solid var(--cyan);
+}
+
+.tx-link:hover {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  opacity: 0.8;
+}
+
+.tx-link:active {
+  opacity: 0.6;
+}
+
 .processing {
   display: flex;
   align-items: center;
@@ -645,6 +711,142 @@ body {
 .send-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ===== QUICK REPAY BUTTON ===== */
+.quick-repay-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.quick-repay-button {
+  padding: 12px 20px;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: #000;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.quick-repay-button:hover:not(:disabled) {
+  background: var(--primary-dim);
+  border-color: var(--primary-dim);
+  transform: translateY(-1px);
+}
+
+.quick-repay-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.quick-repay-button.loading {
+  opacity: 0.8;
+}
+
+.quick-repay-button.quick-repay-retry {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: #000;
+}
+
+.quick-repay-button.quick-repay-retry:hover {
+  background: #FFD700;
+}
+
+.repay-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.repay-spinner {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.quick-repay-success {
+  background: rgba(74, 222, 128, 0.05);
+  border: 1px solid var(--green);
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.repay-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.repay-txs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.repay-tx-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.repay-label {
+  color: var(--text-dim);
+  min-width: 90px;
+}
+
+.repay-tx-link {
+  color: var(--cyan);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.repay-tx-link:hover {
+  color: var(--primary);
+}
+
+.repay-note {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.quick-repay-error {
+  background: rgba(255, 68, 68, 0.05);
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.repay-error-msg {
+  font-size: 12px;
+  color: var(--red);
+  word-break: break-word;
 }
 
 /* ===== RIGHT SIDEBAR ===== */

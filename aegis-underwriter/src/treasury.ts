@@ -289,6 +289,114 @@ export async function disburseFunds(
   }
 }
 
+/**
+ * Gets repayment instructions for a borrower
+ * Returns details needed for borrower to repay their loan via frontend
+ *
+ * @param borrowerAddress The borrower's wallet address
+ * @returns Repayment details or error
+ */
+export async function getRepaymentDetails(borrowerAddress: string): Promise<{
+  success: boolean;
+  borrower: string;
+  amount?: number;
+  interestRate?: number;
+  dueDate?: Date;
+  contractAddress?: string;
+  error?: string;
+}> {
+  console.log("\n💰 TREASURY: Fetching repayment details...");
+  console.log(`   Borrower: ${borrowerAddress}`);
+
+  // Validate
+  if (!ledgerContract) {
+    throw new Error("Treasury not initialized. Call initTreasury() first.");
+  }
+
+  try {
+    // Get loan details
+    const normalizedBorrower = ethers.getAddress(borrowerAddress.toLowerCase());
+    const loanDetails = await getLoanDetails(normalizedBorrower);
+
+    if (!loanDetails) {
+      return {
+        success: false,
+        borrower: normalizedBorrower,
+        error: "No active loan found for this address",
+      };
+    }
+
+    console.log(`   Repayment Amount: ${loanDetails.totalRepayment} USDT`);
+    console.log(`   Interest Rate: ${loanDetails.interestRate}%`);
+    console.log(`   Due Date: ${loanDetails.dueDate}`);
+
+    return {
+      success: true,
+      borrower: normalizedBorrower,
+      amount: parseFloat(loanDetails.totalRepayment),
+      interestRate: loanDetails.interestRate,
+      dueDate: loanDetails.dueDate,
+      contractAddress: LEDGER_CONTRACT_ADDRESS,
+    };
+  } catch (error) {
+    console.error("   ❌ Failed to fetch details:");
+    console.error(error);
+
+    return {
+      success: false,
+      borrower: ethers.getAddress(borrowerAddress.toLowerCase()),
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Verifies if a loan has been repaid
+ * Called after borrower initiates repayment via their wallet
+ *
+ * @param borrowerAddress The borrower's wallet address
+ * @returns Result with loan status
+ */
+export async function verifyLoanRepayment(borrowerAddress: string): Promise<{
+  success: boolean;
+  borrower: string;
+  isRepaid?: boolean;
+  isActive?: boolean;
+  error?: string;
+}> {
+  console.log("\n💰 TREASURY: Verifying loan repayment...");
+  console.log(`   Borrower: ${borrowerAddress}`);
+
+  // Validate
+  if (!ledgerContract) {
+    throw new Error("Treasury not initialized. Call initTreasury() first.");
+  }
+
+  try {
+    const normalizedBorrower = ethers.getAddress(borrowerAddress.toLowerCase());
+    const loan = await ledgerContract.getLoan(normalizedBorrower);
+
+    console.log(`   Loan Active: ${loan.isActive}`);
+    console.log(`   Loan Repaid: ${loan.isRepaid}`);
+
+    return {
+      success: true,
+      borrower: normalizedBorrower,
+      isRepaid: loan.isRepaid,
+      isActive: loan.isActive,
+    };
+  } catch (error) {
+    console.error("   ❌ Failed to verify:");
+    console.error(error);
+
+    return {
+      success: false,
+      borrower: ethers.getAddress(borrowerAddress.toLowerCase()),
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 // ===========================================
 // UTILITY FUNCTIONS
 // ===========================================
