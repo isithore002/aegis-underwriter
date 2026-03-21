@@ -404,8 +404,13 @@ export async function verifyLoanRepayment(borrowerAddress: string): Promise<{
     const normalizedBorrower = ethers.getAddress(borrowerAddress.toLowerCase());
     const loan = await ledgerContract.getLoan(normalizedBorrower);
 
-    console.log(`   Loan Active: ${loan.isActive}`);
-    console.log(`   Loan Repaid: ${loan.isRepaid}`);
+    console.log(`   📋 Loan Status for ${normalizedBorrower}:`);
+    console.log(`      • isActive: ${loan.isActive}`);
+    console.log(`      • isRepaid: ${loan.isRepaid}`);
+    console.log(`      • Principal: ${ethers.formatUnits(loan.amount, 6)} USDT`);
+    console.log(`      • Total Due: ${ethers.formatUnits(loan.totalRepayment, 6)} USDT`);
+    console.log(`      • Interest Rate: ${Number(loan.interestRate) / 100}%`);
+    console.log(`      • Due Date: ${new Date(Number(loan.dueDate) * 1000).toISOString()}`);
 
     return {
       success: true,
