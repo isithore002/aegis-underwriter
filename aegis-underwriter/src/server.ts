@@ -32,10 +32,10 @@ app.use(cors());
 app.use(express.json());
 
 // ===========================================
-// TREASURY MOCK (Until contracts are deployed)
+// TREASURY BALANCE CACHE (to avoid RPC caching issues)
 // ===========================================
 
-let treasuryBalance = "10,000.00 USDT";
+let cachedTreasuryBalance: number | null = null;
 
 // ===========================================
 // API ROUTES
@@ -66,7 +66,7 @@ app.get("/api/treasury", async (_req, res) => {
   } catch {
     // Fallback to mock data
     res.json({
-      usdtBalance: treasuryBalance,
+      usdtBalance: cachedTreasuryBalance ? `${cachedTreasuryBalance.toFixed(1)} USDT` : "10,000.00 USDT (mock)",
       nativeBalance: "---",
       address: process.env.AGENT_PRIVATE_KEY ? "Connected" : "Not configured",
       chainId: 80002,
@@ -170,25 +170,31 @@ app.post("/api/chat", async (req, res) => {
           // Get treasury balance BEFORE disbursement
           await initTreasury();
           const treasuryBefore = await getTreasuryInfo();
-          console.log(`   Treasury Balance BEFORE: ${treasuryBefore.usdtBalanceFormatted} USDT`);
+
+          // Initialize cached balance if not set
+          if (cachedTreasuryBalance === null) {
+            cachedTreasuryBalance = parseFloat(treasuryBefore.usdtBalanceFormatted);
+          }
+
+          console.log(`   Treasury Balance BEFORE: ${cachedTreasuryBalance} USDT`);
 
           // Disburse funds
           const disbursementResult = await disburseFunds(addressMatch[0], decision);
 
           if (disbursementResult.success) {
-            // Give the blockchain a moment to finalize the transaction (same as repayment)
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Update cached balance (subtract disbursed amount)
+            cachedTreasuryBalance = cachedTreasuryBalance! - decision.amount;
+            const afterBalance = cachedTreasuryBalance.toFixed(1);
 
-            // Get updated treasury balance AFTER disbursement
-            const treasuryAfter = await getTreasuryInfo();
-            console.log(`   Treasury Balance AFTER: ${treasuryAfter.usdtBalanceFormatted} USDT`);
-            console.log(`   Difference: ${treasuryBefore.usdtBalanceFormatted} → ${treasuryAfter.usdtBalanceFormatted}`);
+            console.log(`   Treasury Balance AFTER (calculated): ${afterBalance} USDT`);
+            console.log(`   Amount Disbursed: ${decision.amount} USDT`);
 
             return res.json({
-              reply: `📋 LOAN APPLICATION RESULT\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\nRequested: ${requestedAmount} USDT\nCredit Tier: ${creditData.creditTier}\nRisk Score: ${creditData.riskScore}/100\n\n${statusEmoji} DECISION: ${decision.status.toUpperCase()}\n${decisionText}\n\n💬 "${decision.message}"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💸 FUNDS DISBURSED SUCCESSFULLY!\n\n• Amount Sent: ${decision.amount} USDT\n• TX Hash: [TX:${disbursementResult.transactionHash}]\n• Ledger TX: [TX:${disbursementResult.loanRecordHash}]\n• Treasury Balance: ${treasuryAfter.usdtBalanceFormatted} USDT`,
+              reply: `📋 LOAN APPLICATION RESULT\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\nRequested: ${requestedAmount} USDT\nCredit Tier: ${creditData.creditTier}\nRisk Score: ${creditData.riskScore}/100\n\n${statusEmoji} DECISION: ${decision.status.toUpperCase()}\n${decisionText}\n\n💬 "${decision.message}"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💸 FUNDS DISBURSED SUCCESSFULLY!\n\n• Amount Sent: ${decision.amount} USDT\n• TX Hash: [TX:${disbursementResult.transactionHash}]\n• Ledger TX: [TX:${disbursementResult.loanRecordHash}]\n• Treasury Balance: ${afterBalance} USDT`,
               type: "success",
               txHash: disbursementResult.transactionHash,
               loanRecordHash: disbursementResult.loanRecordHash,
+              treasuryBalance: `${afterBalance} USDT`,
             });
           } else {
             return res.json({
@@ -239,29 +245,31 @@ app.post("/api/chat", async (req, res) => {
           // Collect the repayment and refresh treasury balance
           const repaymentCollection = await collectRepayment(addressMatch[0]);
 
-          // Get treasury balance BEFORE waiting
-          const treasuryBefore = await getTreasuryInfo();
-          console.log(`\n💰 [VERIFY] Treasury balance BEFORE delay: ${treasuryBefore.usdtBalanceFormatted} USDT`);
-
-          // Give the blockchain a moment to finalize the transaction
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Get fresh treasury balance after repayment
-          const treasuryAfter = await getTreasuryInfo();
-          console.log(`💰 [VERIFY] Treasury balance AFTER delay: ${treasuryAfter.usdtBalanceFormatted} USDT`);
-          console.log(`💰 [VERIFY] Difference: ${treasuryBefore.usdtBalanceFormatted} → ${treasuryAfter.usdtBalanceFormatted}`);
+          // Initialize cached balance if not set
+          if (cachedTreasuryBalance === null) {
+            const treasuryInfo = await getTreasuryInfo();
+            cachedTreasuryBalance = parseFloat(treasuryInfo.usdtBalanceFormatted);
+          }
 
           if (repaymentCollection.success) {
+            // Update cached balance (add repayment amount)
+            cachedTreasuryBalance = cachedTreasuryBalance + repaymentCollection.amount!;
+            const updatedBalance = cachedTreasuryBalance.toFixed(1);
+
             console.log(`💰 [VERIFY] Repayment collected: ${repaymentCollection.amount} USDT`);
+            console.log(`💰 [VERIFY] Updated cached treasury balance: ${updatedBalance} USDT`);
+
             return res.json({
-              reply: `📋 LOAN REPAYMENT SUCCESSFUL\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED!\n\n• Loan Status: ✅ REPAID\n• Repayment Amount Received: ${repaymentCollection.amount} USDT\n• Updated Treasury Balance: ${treasuryAfter.usdtBalanceFormatted} USDT\n• Active: ${verification.isActive ? "Yes" : "No"}\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
+              reply: `📋 LOAN REPAYMENT SUCCESSFUL\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED!\n\n• Loan Status: ✅ REPAID\n• Repayment Amount Received: ${repaymentCollection.amount} USDT\n• Updated Treasury Balance: ${updatedBalance} USDT\n• Active: ${verification.isActive ? "Yes" : "No"}\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
               type: "success",
+              treasuryBalance: `${updatedBalance} USDT`,
             });
           } else {
             console.log(`⚠️ [VERIFY] Repayment collection issue: ${repaymentCollection.error}`);
             return res.json({
-              reply: `📋 LOAN REPAYMENT STATUS\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED ON-CHAIN!\n\n• Loan Status: ✅ REPAID\n• Updated Treasury Balance: ${treasuryAfter.usdtBalanceFormatted} USDT\n• Active: ${verification.isActive ? "Yes" : "No"}\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
+              reply: `📋 LOAN REPAYMENT STATUS\n\nBorrower: ${addressMatch[0].slice(0, 10)}...${addressMatch[0].slice(-6)}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ REPAYMENT CONFIRMED ON-CHAIN!\n\n• Loan Status: ✅ REPAID\n• Updated Treasury Balance: ${cachedTreasuryBalance.toFixed(1)} USDT\n• Active: ${verification.isActive ? "Yes" : "No"}\n\n🎉 Your loan has been successfully repaid!\n\n💡 Tip: Check your wallet transaction history for the repayment TX hash to verify on Polygonscan.`,
               type: "success",
+              treasuryBalance: `${cachedTreasuryBalance.toFixed(1)} USDT`,
             });
           }
         } else if (verification.isActive) {
@@ -337,13 +345,18 @@ app.post("/api/chat", async (req, res) => {
         await initTreasury();
         const info = await getTreasuryInfo();
 
+        // Initialize cached balance if not set
+        if (cachedTreasuryBalance === null) {
+          cachedTreasuryBalance = parseFloat(info.usdtBalanceFormatted);
+        }
+
         return res.json({
-          reply: `💼 TREASURY STATUS\n\n• Address: ${info.address.slice(0, 16)}...${info.address.slice(-6)}\n• USDT Balance: ${info.usdtBalanceFormatted} USDT\n• Native Balance: ${info.nativeBalanceFormatted} MATIC\n• Chain ID: ${info.chainId}\n• Status: 🟢 ONLINE`,
+          reply: `💼 TREASURY STATUS\n\n• Address: ${info.address.slice(0, 16)}...${info.address.slice(-6)}\n• USDT Balance: ${cachedTreasuryBalance.toFixed(1)} USDT\n• Native Balance: ${info.nativeBalanceFormatted} MATIC\n• Chain ID: ${info.chainId}\n• Status: 🟢 ONLINE`,
           type: "success",
         });
       } catch {
         return res.json({
-          reply: `💼 TREASURY STATUS\n\n• Status: 🟡 SIMULATION MODE\n• USDT Balance: ${treasuryBalance} (mock)\n• Chain: Polygon Amoy (80002)\n\n⚠️ Deploy contracts to enable real transactions:\nnpx hardhat run scripts/deploy.ts --network polygonAmoy`,
+          reply: `💼 TREASURY STATUS\n\n• Status: 🟡 SIMULATION MODE\n• USDT Balance: 10,000.00 USDT (mock)\n• Chain: Polygon Amoy (80002)\n\n⚠️ Deploy contracts to enable real transactions:\nnpx hardhat run scripts/deploy.ts --network polygonAmoy`,
           type: "warning",
         });
       }

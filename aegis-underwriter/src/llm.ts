@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as dotenv from "dotenv";
 import { CreditData } from "./credit";
 
@@ -32,17 +32,15 @@ export interface LoanRequest {
 // CONFIGURATION
 // ===========================================
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MAX_LOAN_AMOUNT = parseInt(process.env.MAX_LOAN_AMOUNT || "500");
-const MODEL = "gpt-4o"; // Latest GPT-4 Optimized
+const MODEL = "gemini-1.5-flash"; // Fast & capable model
 
-if (!OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY not found in environment variables");
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY not found in environment variables. Get one at https://ai.google.dev/");
 }
 
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // ===========================================
 // SYSTEM PROMPT
@@ -154,22 +152,29 @@ export async function negotiateLoan(
   const userPrompt = buildUserPrompt(loanRequest, creditData);
 
   try {
-    console.log("   Consulting OpenAI GPT-4...");
+    console.log("   Consulting Google Gemini...");
 
-    const response = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: AEGIS_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
+    const model = genAI.getGenerativeModel({ model: MODEL });
+    const response = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: AEGIS_SYSTEM_PROMPT + "\n\n" + userPrompt
+            }
+          ]
+        }
       ],
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-      max_tokens: 500,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
+      },
     });
 
-    const rawContent = response.choices[0]?.message?.content;
+    const rawContent = response.response.text();
     if (!rawContent) {
-      throw new Error("OpenAI returned empty response");
+      throw new Error("Gemini returned empty response");
     }
 
     console.log("   ✓ LLM response received");
@@ -235,7 +240,14 @@ function buildUserPrompt(
  */
 function parseLoanDecision(rawJson: string): LoanDecision {
   try {
-    const parsed = JSON.parse(rawJson);
+    // Extract JSON from markdown code block if present
+    let jsonString = rawJson;
+    const jsonMatch = rawJson.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonString = jsonMatch[1];
+    }
+
+    const parsed = JSON.parse(jsonString);
 
     // Validate required fields
     if (!parsed.status || !["approved", "denied", "counter_offer"].includes(parsed.status)) {

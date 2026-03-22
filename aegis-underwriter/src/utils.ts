@@ -15,7 +15,7 @@ export function generatePolygonscanUrl(txHash: string, network: 'mainnet' | 'amo
 
   if (network === 'amoy') {
     // Polygon Amoy testnet
-    return `https://www.oklink.com/amoy/tx/${txHash}`;
+    return `https://amoy.polygonscan.com/tx/${txHash}`;
   } else {
     // Polygon mainnet
     return `https://polygonscan.com/tx/${txHash}`;

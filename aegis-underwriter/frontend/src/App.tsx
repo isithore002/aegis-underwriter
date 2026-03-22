@@ -245,7 +245,11 @@ Run: npm run server`);
         const msgType = res.data.type === 'success' ? 'success' :
                        res.data.type === 'error' ? 'error' : 'warning';
         addMessage(msgType, res.data.reply);
-        setStats(prev => ({ ...prev, loans: prev.loans + 1 }));
+        setStats(prev => ({
+          ...prev,
+          loans: prev.loans + 1,
+          treasury: res.data.treasuryBalance || prev.treasury
+        }));
       } catch {
         addMessage('error', 'Backend offline. Start server: npm run server');
       }
@@ -290,6 +294,9 @@ Run: npm run server`);
         const msgType = res.data.type === 'success' ? 'success' :
                        res.data.type === 'error' ? 'error' : 'warning';
         addMessage(msgType, res.data.reply);
+        if (res.data.treasuryBalance) {
+          setStats(prev => ({ ...prev, treasury: res.data.treasuryBalance }));
+        }
       } catch {
         addMessage('error', 'Backend offline. Start server: npm run server');
       }
