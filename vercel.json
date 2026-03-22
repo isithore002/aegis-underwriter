@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "aegis-underwriter/src/server.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["aegis-underwriter/dist/**", "aegis-underwriter/artifacts/**", "aegis-underwriter/typechain-types/**"]
+      }
+    },
+    {
+      "src": "aegis-underwriter/frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "aegis-underwriter/src/server.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "aegis-underwriter/frontend/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

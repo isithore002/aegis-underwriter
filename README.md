@@ -465,6 +465,56 @@ Built with ❤️ using Google Gemini AI, Ethers.js, and React
 - Wagmi for wallet connectivity
 - OKLink for blockchain data APIs
 
+
+---
+
+## 🌐 Deployment
+
+### Option 1: Vercel (Frontend) + Railway (Backend)
+
+**Recommended approach for free hosting:**
+
+#### Deploy Backend on Railway:
+1. Go to [Railway.app](https://railway.app/) and sign in
+2. Click "New Project" → "Deploy from GitHub repo"
+3. Select your repository
+4. Set root directory: `aegis-underwriter`
+5. Add environment variables (see `.env.example`)
+6. Deploy and get URL: `https://your-app.railway.app`
+
+#### Deploy Frontend on Vercel:
+1. Go to [Vercel.com](https://vercel.com/) and sign in
+2. Click "Add New Project" → Import GitHub repo
+3. Configure:
+   - Root Directory: `aegis-underwriter/frontend`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+4. Add environment variable:
+   ```
+   VITE_API_URL=https://your-app.railway.app
+   ```
+5. Deploy
+
+### Option 2: Full Vercel Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed Vercel deployment guide.
+
+### Required Environment Variables
+
+All environment variables must be set in your deployment platform:
+
+```env
+AGENT_PRIVATE_KEY=0x...
+GEMINI_API_KEY=...
+OKLINK_API_KEY=...
+MOCK_USDT_ADDRESS=0x1f284415bA39067cFC39545c3bcfae1730BEB326
+LEDGER_CONTRACT_ADDRESS=0x9274Dc7Bc8fd3B49f0cc3CaE1340fFf65D5f5655
+RPC_URL=https://rpc-amoy.polygon.technology
+MAX_LOAN_AMOUNT=500
+```
+
+⚠️ **Security**: Never commit `.env` file to GitHub!
+
 ---
 
 ## 📈 Future Roadmap
